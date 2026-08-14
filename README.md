@@ -801,7 +801,7 @@ export class Bolt7Parser {
     const htlcMinimumMsat = this.readU64();
     const feeBaseMsat = this.readU32();
     const feeProportionalMillionths = this.readU32();
-    const htlcMaximumMsat = this.readU64();
+    const htlcMaximumMsat = (messageFlags & 0x01) !== 0 ? this.readU64() : 0n;
 
     return {
       type: 258,
