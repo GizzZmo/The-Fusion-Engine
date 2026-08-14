@@ -1314,8 +1314,8 @@ export class FusionAnalytics {
   public getFeeHistogram() {
     // Group transactions into feerate percentiles
     const query = `
-      SELECT
-        CASE
+      SELECT 
+        CASE 
           | WHEN feerate <= 5 THEN '1-5 sat/vB'
           | WHEN feerate <= 15 THEN '6-15 sat/vB'
           | WHEN feerate <= 50 THEN '16-50 sat/vB'
