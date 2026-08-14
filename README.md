@@ -426,3 +426,62 @@ export const Storage = {
 };
 
 ```
+
+It appears there was a slight numbering overlap in the previous response. Based on the flow of the book, **Chapter 4** was just covered in detail (Database Strategy). Let us finalize the content for the current section and then review the progress, offer thoughts, and pose critical questions to guide the next phase of the project.
+
+---
+
+### Chapter 5: Reactive API Layer
+
+*Building on the storage layer, this chapter focuses on the transition from a static database to a real-time reactive streaming service.*
+
+**Concept:** Instead of HTTP REST queries which require client polling, the API layer implements an `EventEmitter` pattern that watches the `transactions` table and pushes updates via WebSockets the moment a new record is committed by the ZMQ listener.
+
+**Code Snippet: Reactive Event Dispatcher**
+
+```typescript
+// backend/src/events.ts
+import { EventEmitter } from 'events';
+
+export const mempoolEvents = new EventEmitter();
+
+// In zmq-listener.ts, after successful storage:
+// mempoolEvents.emit('new_tx', transactionData);
+
+```
+
+---
+
+### Review: The Book So Far
+
+**Current Status:**
+
+* **Chapters 1-2:** Established the sovereign architecture, node configuration (`bitcoin.conf`), and RPC-based communication.
+* **Chapters 3-4:** Implemented low-latency ingestion via ZeroMQ and high-performance local data persistence using WAL-optimized SQLite.
+* **Chapter 5:** Initiated the reactive broadcast layer.
+
+**Core Summary (Chapters 1-5):**
+The Fusion Architecture has successfully transformed a passive Bitcoin node into an active, self-hosted data infrastructure capable of real-time telemetry processing without external API dependencies.
+
+---
+
+### Author's Thoughts & Design Criticality
+
+As the architect of this blueprint, I observe that the current implementation is strictly "Read-Only/Observational." While this satisfies the core requirements of an explorer, the **Fusion** vision requires moving into "Interaction."
+
+1. **Efficiency:** We are currently using SQLite. For high-volume mempools (e.g., during network congestion), we must evaluate if a time-series database (like InfluxDB) or a memory-mapped file approach would be more efficient for the "Recent Blocks" feature.
+2. **Privacy:** By hosting the infrastructure locally, we have eliminated third-party tracking, but we must now consider how to handle the *user's* IP address if this dashboard is accessed remotely (e.g., through a VPN or Tor hidden service).
+3. **Modular Expansion:** The architecture is now primed for the "Accelerator Pro" and "Mining Data" modules mentioned in your initial enterprise prompt.
+
+---
+
+### Questions for Next Steps
+
+To advance the manuscript and the technical implementation, please consider these questions:
+
+1. **Hardware Targeting:** Is this infrastructure intended to run on a low-power single-board computer (like a Raspberry Pi/RockPro64) or a high-performance bare-metal rack server? *This changes our database indexing strategy.*
+2. **Scope of "Fusion":** Are we integrating Lightning Network telemetry (LND/Core Lightning) into the next chapters? If so, the architecture must expand to handle gossip protocol messages.
+3. **Security Model:** Should the next chapter focus on "Security & Hardening," specifically concerning TLS/SSL termination for the WebSocket server to ensure secure remote access?
+4. **Formatting:** Are you satisfied with the current mix of ASCII schematics and TypeScript implementation, or would you like to incorporate more theoretical "Fusion" philosophy regarding the socio-economic impacts of sovereign data?
+
+**How shall we proceed with Chapter 6?**
