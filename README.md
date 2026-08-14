@@ -543,40 +543,297 @@ The network graph is continually constructed and updated via three primary messa
 ```
 
 1. **`channel_announcement` (Type 256):** Validates the cooperative creation of a payment channel, linking cryptographic node IDs to an underlying on-chain funding transaction output (Short Channel ID).
-2. **`channel_update` (Type 257):** Transmitted unilaterally by channel participants to adjust routing policies, base fees, proportional fee rates (parts per million), and timelock deltas.
-3. **`node_announcement` (Type 258):** Broadcasts node metadata, including human-readable aliases, network addresses (IP/Tor onion services), and supported feature bits.
+2. **`node_announcement` (Type 257):** Broadcasts node metadata, including human-readable aliases, network addresses (IP/Tor onion services), and supported feature bits.
+3. **`channel_update` (Type 258):** Transmitted unilaterally by channel participants to adjust routing policies, base fees, proportional fee rates (parts per million), and timelock deltas. Direction is indicated by the lowest bit of `channel_flags`.
 
 ---
 
-### Complete Code Implementation: The Lightning Gossip Consumer
+### Complete Code Implementation: Sequential BOLT 7 Parser + Lightning Gossip Engine
 
-The following TypeScript module connects to a local Lightning daemon (compatible with LND or Core Lightning gRPC / IPC interfaces), consumes raw gossip data streams, decodes the binary payloads according to BOLT #7 rules, and indexes the topology changes into the local Fusion database.
+The original hard-coded offset approach fails as soon as any node advertises non-empty feature bits (variable-length field). The implementation below uses a sequential `Buffer` reader that correctly walks every field according to BOLT #7, correctly maps the three message types, stores both directions of channel policy, and parses node addresses.
+
+```typescript
+// backend/src/bolt7-parser.ts
+import { Buffer } from 'buffer';
+
+export interface ChannelAnnouncement {
+  type: 256;
+  nodeSignature1: Buffer;
+  nodeSignature2: Buffer;
+  bitcoinSignature1: Buffer;
+  bitcoinSignature2: Buffer;
+  features: Buffer;
+  chainHash: Buffer;
+  shortChannelId: string;
+  nodeId1: string;
+  nodeId2: string;
+  bitcoinKey1: string;
+  bitcoinKey2: string;
+}
+
+export interface NodeAnnouncement {
+  type: 257;
+  signature: Buffer;
+  features: Buffer;
+  timestamp: number;
+  nodeId: string;
+  rgbColor: string;
+  alias: string;
+  addresses: Array<{ type: number; host: string; port: number }>;
+}
+
+export interface ChannelUpdate {
+  type: 258;
+  signature: Buffer;
+  chainHash: Buffer;
+  shortChannelId: string;
+  timestamp: number;
+  messageFlags: number;
+  channelFlags: number;
+  direction: 0 | 1;
+  isDisabled: boolean;
+  cltvExpiryDelta: number;
+  htlcMinimumMsat: bigint;
+  feeBaseMsat: number;
+  feeProportionalMillionths: number;
+  htlcMaximumMsat: bigint;
+}
+
+export type GossipMessage = ChannelAnnouncement | NodeAnnouncement | ChannelUpdate;
+
+/**
+ * Sequential BOLT 7 gossip message parser.
+ * Handles variable-length features and address lists correctly.
+ */
+export class Bolt7Parser {
+  private buf: Buffer;
+  private offset = 0;
+
+  constructor(buf: Buffer) {
+    this.buf = buf;
+  }
+
+  private ensure(bytes: number) {
+    if (this.offset + bytes > this.buf.length) {
+      throw new Error(`Buffer underrun at offset ${this.offset}, need ${bytes} more bytes`);
+    }
+  }
+
+  private readU8(): number {
+    this.ensure(1);
+    const v = this.buf.readUInt8(this.offset);
+    this.offset += 1;
+    return v;
+  }
+
+  private readU16(): number {
+    this.ensure(2);
+    const v = this.buf.readUInt16BE(this.offset);
+    this.offset += 2;
+    return v;
+  }
+
+  private readU32(): number {
+    this.ensure(4);
+    const v = this.buf.readUInt32BE(this.offset);
+    this.offset += 4;
+    return v;
+  }
+
+  private readU64(): bigint {
+    this.ensure(8);
+    const v = this.buf.readBigUInt64BE(this.offset);
+    this.offset += 8;
+    return v;
+  }
+
+  private readBytes(len: number): Buffer {
+    this.ensure(len);
+    const slice = this.buf.subarray(this.offset, this.offset + len);
+    this.offset += len;
+    return slice;
+  }
+
+  private readPoint(): string {
+    return this.readBytes(33).toString('hex');
+  }
+
+  private readSignature(): Buffer {
+    return this.readBytes(64);
+  }
+
+  parseChannelAnnouncement(): ChannelAnnouncement {
+    const nodeSignature1 = this.readSignature();
+    const nodeSignature2 = this.readSignature();
+    const bitcoinSignature1 = this.readSignature();
+    const bitcoinSignature2 = this.readSignature();
+
+    const featuresLen = this.readU16();
+    const features = this.readBytes(featuresLen);
+
+    const chainHash = this.readBytes(32);
+    const shortChannelId = this.readU64().toString();
+
+    const nodeId1 = this.readPoint();
+    const nodeId2 = this.readPoint();
+    const bitcoinKey1 = this.readPoint();
+    const bitcoinKey2 = this.readPoint();
+
+    return {
+      type: 256,
+      nodeSignature1,
+      nodeSignature2,
+      bitcoinSignature1,
+      bitcoinSignature2,
+      features,
+      chainHash,
+      shortChannelId,
+      nodeId1,
+      nodeId2,
+      bitcoinKey1,
+      bitcoinKey2,
+    };
+  }
+
+  parseNodeAnnouncement(): NodeAnnouncement {
+    const signature = this.readSignature();
+
+    const featuresLen = this.readU16();
+    const features = this.readBytes(featuresLen);
+
+    const timestamp = this.readU32();
+    const nodeId = this.readPoint();
+
+    const rgb = this.readBytes(3);
+    const rgbColor = `#${rgb.toString('hex')}`;
+
+    const aliasRaw = this.readBytes(32);
+    const alias = aliasRaw.toString('utf8').replace(/\0+$/, '');
+
+    const addrLen = this.readU16();
+    const addressesBuf = this.readBytes(addrLen);
+    const addresses = this.parseAddresses(addressesBuf);
+
+    return {
+      type: 257,
+      signature,
+      features,
+      timestamp,
+      nodeId,
+      rgbColor,
+      alias,
+      addresses,
+    };
+  }
+
+  private parseAddresses(buf: Buffer): NodeAnnouncement['addresses'] {
+    const result: NodeAnnouncement['addresses'] = [];
+    let i = 0;
+
+    while (i < buf.length) {
+      const type = buf.readUInt8(i);
+      i += 1;
+
+      try {
+        switch (type) {
+          case 1: { // IPv4
+            if (i + 6 > buf.length) break;
+            const host = `${buf[i]}.${buf[i + 1]}.${buf[i + 2]}.${buf[i + 3]}`;
+            const port = buf.readUInt16BE(i + 4);
+            result.push({ type, host, port });
+            i += 6;
+            break;
+          }
+          case 2: { // IPv6
+            if (i + 18 > buf.length) break;
+            const parts: string[] = [];
+            for (let j = 0; j < 16; j += 2) {
+              parts.push(buf.readUInt16BE(i + j).toString(16));
+            }
+            const host = parts.join(':');
+            const port = buf.readUInt16BE(i + 16);
+            result.push({ type, host, port });
+            i += 18;
+            break;
+          }
+          case 4: { // Tor v3
+            if (i + 37 > buf.length) break;
+            const onion = buf.subarray(i, i + 35).toString('base64url');
+            const port = buf.readUInt16BE(i + 35);
+            result.push({ type, host: `${onion}.onion`, port });
+            i += 37;
+            break;
+          }
+          case 5: { // DNS hostname
+            if (i + 1 > buf.length) break;
+            const hostLen = buf.readUInt8(i);
+            i += 1;
+            if (i + hostLen + 2 > buf.length) break;
+            const host = buf.subarray(i, i + hostLen).toString('utf8');
+            const port = buf.readUInt16BE(i + hostLen);
+            result.push({ type, host, port });
+            i += hostLen + 2;
+            break;
+          }
+          default:
+            return result;
+        }
+      } catch {
+        break;
+      }
+    }
+    return result;
+  }
+
+  parseChannelUpdate(): ChannelUpdate {
+    const signature = this.readSignature();
+    const chainHash = this.readBytes(32);
+    const shortChannelId = this.readU64().toString();
+    const timestamp = this.readU32();
+
+    const messageFlags = this.readU8();
+    const channelFlags = this.readU8();
+
+    const direction = (channelFlags & 0x01) as 0 | 1;
+    const isDisabled = (channelFlags & 0x02) !== 0;
+
+    const cltvExpiryDelta = this.readU16();
+    const htlcMinimumMsat = this.readU64();
+    const feeBaseMsat = this.readU32();
+    const feeProportionalMillionths = this.readU32();
+    const htlcMaximumMsat = (messageFlags & 0x01) !== 0 ? this.readU64() : 0n;
+
+    return {
+      type: 258,
+      signature,
+      chainHash,
+      shortChannelId,
+      timestamp,
+      messageFlags,
+      channelFlags,
+      direction,
+      isDisabled,
+      cltvExpiryDelta,
+      htlcMinimumMsat,
+      feeBaseMsat,
+      feeProportionalMillionths,
+      htlcMaximumMsat,
+    };
+  }
+}
+```
 
 ```typescript
 // backend/src/lightning-gossip-engine.ts
 import { EventEmitter } from 'events';
 import Database from 'better-sqlite3';
 import path from 'path';
-
-interface ChannelAnnouncementPayload {
-  nodeId1: string;
-  nodeId2: string;
-  shortChannelId: string;
-}
-
-interface ChannelUpdatePayload {
-  shortChannelId: string;
-  feeBaseMsat: number;
-  feeProportionalMillionths: number;
-  locktimeDelta: number;
-}
-
-interface NodeAnnouncementPayload {
-  nodeId: string;
-  alias: string;
-  addresses: string[];
-  timestamp: number;
-}
+import {
+  Bolt7Parser,
+  ChannelAnnouncement,
+  ChannelUpdate,
+  NodeAnnouncement,
+} from './bolt7-parser';
 
 export class LightningGossipEngine extends EventEmitter {
   private db: Database.Database;
@@ -613,18 +870,31 @@ export class LightningGossipEngine extends EventEmitter {
     console.log('[Lightning Gossip] SQLite topology tables initialized.');
   }
 
+  /**
+   * Process a raw gossip payload.
+   * @param type  BOLT message type (256 / 257 / 258)
+   * @param buffer  Payload bytes (type already stripped by transport)
+   */
   public processGossipPacket(type: number, buffer: Buffer) {
     try {
+      const parser = new Bolt7Parser(buffer);
+
       switch (type) {
-        case 256: // channel_announcement
-          this.handleChannelAnnouncement(buffer);
+        case 256: {
+          const msg = parser.parseChannelAnnouncement();
+          this.handleChannelAnnouncement(msg);
           break;
-        case 257: // channel_update
-          this.handleChannelUpdate(buffer);
+        }
+        case 257: {
+          const msg = parser.parseNodeAnnouncement();
+          this.handleNodeAnnouncement(msg);
           break;
-        case 258: // node_announcement
-          this.handleNodeAnnouncement(buffer);
+        }
+        case 258: {
+          const msg = parser.parseChannelUpdate();
+          this.handleChannelUpdate(msg);
           break;
+        }
         default:
           // Unhandled or control message types
           break;
@@ -634,63 +904,88 @@ export class LightningGossipEngine extends EventEmitter {
     }
   }
 
-  private handleChannelAnnouncement(buf: Buffer) {
-    // Structural representation parsing based on BOLT 7 binary layout offsets
-    const shortChannelId = buf.readBigUInt64BE(256).toString();
-    const nodeId1 = buf.subarray(264, 297).toString('hex');
-    const nodeId2 = buf.subarray(297, 330).toString('hex');
-
+  private handleChannelAnnouncement(msg: ChannelAnnouncement) {
     const stmt = this.db.prepare(`
-      INSERT OR IGNORE INTO ln_channels (short_channel_id, node_id_1, node_id_2, updated_at)
+      INSERT OR IGNORE INTO ln_channels
+        (short_channel_id, node_id_1, node_id_2, updated_at)
       VALUES (?, ?, ?, ?)
     `);
-    stmt.run(shortChannelId, nodeId1, nodeId2, Date.now());
+    stmt.run(msg.shortChannelId, msg.nodeId1, msg.nodeId2, Date.now());
 
-    this.emit('channel_discovered', { shortChannelId, nodeId1, nodeId2 });
+    this.emit('channel_discovered', {
+      shortChannelId: msg.shortChannelId,
+      nodeId1: msg.nodeId1,
+      nodeId2: msg.nodeId2,
+    });
   }
 
-  private handleChannelUpdate(buf: Buffer) {
-    const shortChannelId = buf.readBigUInt64BE(258).toString();
-    const feeBaseMsat = buf.readUInt32BE(274);
-    const feeProportionalMillionths = buf.readUInt32BE(278);
+  private handleChannelUpdate(msg: ChannelUpdate) {
+    // direction 0 → node_id_1 side, direction 1 → node_id_2 side
+    const baseCol = msg.direction === 0 ? 'fee_base_1' : 'fee_base_2';
+    const ppmCol  = msg.direction === 0 ? 'fee_ppm_1'  : 'fee_ppm_2';
 
     const stmt = this.db.prepare(`
-      UPDATE ln_channels 
-      SET fee_base_1 = ?, fee_ppm_1 = ?, updated_at = ? 
+      UPDATE ln_channels
+      SET ${baseCol} = ?, ${ppmCol} = ?, is_active = ?, updated_at = ?
       WHERE short_channel_id = ?
     `);
-    stmt.run(feeBaseMsat, feeProportionalMillionths, Date.now(), shortChannelId);
 
-    this.emit('fee_policy_updated', { shortChannelId, feeBaseMsat, feeProportionalMillionths });
+    stmt.run(
+      msg.feeBaseMsat,
+      msg.feeProportionalMillionths,
+      msg.isDisabled ? 0 : 1,
+      Date.now(),
+      msg.shortChannelId
+    );
+
+    this.emit('fee_policy_updated', {
+      shortChannelId: msg.shortChannelId,
+      direction: msg.direction,
+      feeBaseMsat: msg.feeBaseMsat,
+      feeProportionalMillionths: msg.feeProportionalMillionths,
+      isDisabled: msg.isDisabled,
+      cltvExpiryDelta: msg.cltvExpiryDelta,
+      htlcMinimumMsat: msg.htlcMinimumMsat.toString(),
+      htlcMaximumMsat: msg.htlcMaximumMsat.toString(),
+    });
   }
 
-  private handleNodeAnnouncement(buf: Buffer) {
-    const nodeId = buf.subarray(66, 99).toString('hex');
-    const alias = buf.subarray(131, 163).toString('utf8').replace(/\0/g, '');
-    const timestamp = Date.now();
-
+  private handleNodeAnnouncement(msg: NodeAnnouncement) {
     const stmt = this.db.prepare(`
       INSERT INTO ln_nodes (node_id, alias, addresses, last_seen)
       VALUES (?, ?, ?, ?)
-      ON CONFLICT(node_id) DO UPDATE SET alias=excluded.alias, last_seen=excluded.last_seen
+      ON CONFLICT(node_id) DO UPDATE SET
+        alias = excluded.alias,
+        addresses = excluded.addresses,
+        last_seen = excluded.last_seen
     `);
-    stmt.run(nodeId, alias, JSON.stringify([]), timestamp);
 
-    this.emit('node_updated', { nodeId, alias });
+    stmt.run(
+      msg.nodeId,
+      msg.alias,
+      JSON.stringify(msg.addresses),
+      msg.timestamp * 1000
+    );
+
+    this.emit('node_updated', {
+      nodeId: msg.nodeId,
+      alias: msg.alias,
+      addresses: msg.addresses,
+      rgbColor: msg.rgbColor,
+    });
   }
 
   public getNetworkTopologySummary() {
     const nodeCount = this.db.prepare(`SELECT COUNT(*) as count FROM ln_nodes`).get() as { count: number };
     const channelCount = this.db.prepare(`SELECT COUNT(*) as count FROM ln_channels WHERE is_active = 1`).get() as { count: number };
-    
+
     return {
       totalNodes: nodeCount.count,
       activeChannels: channelCount.count,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     };
   }
 }
-
 ```
 
 ---
@@ -698,7 +993,6 @@ export class LightningGossipEngine extends EventEmitter {
 ### Integration Architecture with the Core Fusion Engine
 
 By feeding the output of the `LightningGossipEngine` into the secure WebSocket server built in Chapter 8, operators can stream real-time channel routing changes and fee adjustments directly to connected enterprise clients. This completes the bidirectional data loop, turning the self-hosted node into an intelligent hub for both on-chain mempool analytics and layer-2 liquidity tracking.
-```
 
 ---
 
