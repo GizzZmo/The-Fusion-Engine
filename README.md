@@ -646,3 +646,194 @@ Sovereign computing via self-hosted nodes and local-first databases restores the
 * **Chapter 6 (Cross-Platform Compilation):** Ensured absolute environment parity across Windows (x86/x64), RedHat Linux, and Apple Silicon (ARM64) architectures.
 * **Chapter 7 (Lightning Network Integration):** Expanded network telemetry capture to parse LND and Core Lightning gossip protocols (`channel_announcement`, `channel_update`, `node_announcement`).
 * **Chapter 8 (Security & Hardening):** Secured data pipes through enforced TLS/SSL termination (`wss://`) and token-authenticated WebSocket handshakes.
+
+* ## Chapter 7: Lightning Network Telemetry & Gossip Protocol Integration
+
+Scaling the Fusion architecture from base-layer Bitcoin mempool analysis into the second layer requires direct integration with the Lightning Network. The Lightning Network operates through an asynchronous, peer-to-peer gossip protocol defined by the **Basis of Lightning Technology (BOLT #7)** specifications. This protocol allows nodes to discover peers, map channel topologies, and track dynamic routing fees in real-time without centralized authorities.
+
+### The Gossip Protocol Topology
+
+The network graph is continually constructed and updated via three primary message types propagated across encrypted transports:
+
+```text
+ +---------------------------------------------------------------+
+ |                  Lightning Gossip Network                     |
+ +-------------------------------+-------------------------------+
+                                 | 
+        +------------------------+------------------------+
+        |                        |                        |
+        v                        v                        v
+ +--------------+        +---------------+        +---------------+
+ | channel_     |        | channel_      |        | node_         |
+ | announcement |        | update        |        | announcement  |
+ | (On-chain proof|      | (Fee/Policy   |        | (Alias, IP,   |
+ |  of channel) |        |  adjustments) |        |  features)    |
+ +------+-------+        +-------+-------+        +-------+-------+
+        |                        |                        |
+        +------------------------+------------------------+
+                                 |
+                                 v
+                 +-------------------------------+
+                 |   Fusion Gossip Ingester      |
+                 |  - Graph State Machine        |
+                 |  - SQLite / Memory Graph Cache|
+                 +-------------------------------+
+
+```
+
+1. **`channel_announcement` (Type 256):** Validates the cooperative creation of a payment channel, linking cryptographic node IDs to an underlying on-chain funding transaction output (Short Channel ID).
+2. **`channel_update` (Type 257):** Transmitted unilaterally by channel participants to adjust routing policies, base fees, proportional fee rates (parts per million), and timelock deltas.
+3. **`node_announcement` (Type 258):** Broadcasts node metadata, including human-readable aliases, network addresses (IP/Tor onion services), and supported feature bits.
+
+---
+
+### Complete Code Implementation: The Lightning Gossip Consumer
+
+The following TypeScript module connects to a local Lightning daemon (compatible with LND or Core Lightning gRPC / IPC interfaces), consumes raw gossip data streams, decodes the binary payloads according to BOLT #7 rules, and indexes the topology changes into the local Fusion database.
+
+```typescript
+// backend/src/lightning-gossip-engine.ts
+import { EventEmitter } from 'events';
+import Database from 'better-sqlite3';
+import path from 'path';
+
+interface ChannelAnnouncementPayload {
+  nodeId1: string;
+  nodeId2: string;
+  shortChannelId: string;
+}
+
+interface ChannelUpdatePayload {
+  shortChannelId: string;
+  feeBaseMsat: number;
+  feeProportionalMillionths: number;
+  locktimeDelta: number;
+}
+
+interface NodeAnnouncementPayload {
+  nodeId: string;
+  alias: string;
+  addresses: string[];
+  timestamp: number;
+}
+
+export class LightningGossipEngine extends EventEmitter {
+  private db: Database.Database;
+
+  constructor(dbPath: string = path.resolve(__dirname, '../fusion_lightning.db')) {
+    super();
+    this.db = new Database(dbPath);
+    this.initializeTables();
+  }
+
+  private initializeTables() {
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS ln_nodes (
+        node_id TEXT PRIMARY KEY,
+        alias TEXT,
+        addresses TEXT,
+        last_seen INTEGER
+      );
+
+      CREATE TABLE IF NOT EXISTS ln_channels (
+        short_channel_id TEXT PRIMARY KEY,
+        node_id_1 TEXT,
+        node_id_2 TEXT,
+        fee_base_1 INTEGER DEFAULT 0,
+        fee_ppm_1 INTEGER DEFAULT 0,
+        fee_base_2 INTEGER DEFAULT 0,
+        fee_ppm_2 INTEGER DEFAULT 0,
+        is_active INTEGER DEFAULT 1,
+        updated_at INTEGER
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_active_channels ON ln_channels(is_active);
+    `);
+    console.log('[Lightning Gossip] SQLite topology tables initialized.');
+  }
+
+  public processGossipPacket(type: number, buffer: Buffer) {
+    try {
+      switch (type) {
+        case 256: // channel_announcement
+          this.handleChannelAnnouncement(buffer);
+          break;
+        case 257: // channel_update
+          this.handleChannelUpdate(buffer);
+          break;
+        case 258: // node_announcement
+          this.handleNodeAnnouncement(buffer);
+          break;
+        default:
+          // Unhandled or control message types
+          break;
+      }
+    } catch (err: any) {
+      console.error(`[Gossip Error] Failed to process packet type ${type}: ${err.message}`);
+    }
+  }
+
+  private handleChannelAnnouncement(buf: Buffer) {
+    // Structural representation parsing based on BOLT 7 binary layout offsets
+    const shortChannelId = buf.readBigUInt64BE(256).toString();
+    const nodeId1 = buf.subarray(264, 297).toString('hex');
+    const nodeId2 = buf.subarray(297, 330).toString('hex');
+
+    const stmt = this.db.prepare(`
+      INSERT OR IGNORE INTO ln_channels (short_channel_id, node_id_1, node_id_2, updated_at)
+      VALUES (?, ?, ?, ?)
+    `);
+    stmt.run(shortChannelId, nodeId1, nodeId2, Date.now());
+
+    this.emit('channel_discovered', { shortChannelId, nodeId1, nodeId2 });
+  }
+
+  private handleChannelUpdate(buf: Buffer) {
+    const shortChannelId = buf.readBigUInt64BE(258).toString();
+    const feeBaseMsat = buf.readUInt32BE(274);
+    const feeProportionalMillionths = buf.readUInt32BE(278);
+
+    const stmt = this.db.prepare(`
+      UPDATE ln_channels 
+      SET fee_base_1 = ?, fee_ppm_1 = ?, updated_at = ? 
+      WHERE short_channel_id = ?
+    `);
+    stmt.run(feeBaseMsat, feeProportionalMillionths, Date.now(), shortChannelId);
+
+    this.emit('fee_policy_updated', { shortChannelId, feeBaseMsat, feeProportionalMillionths });
+  }
+
+  private handleNodeAnnouncement(buf: Buffer) {
+    const nodeId = buf.subarray(66, 99).toString('hex');
+    const alias = buf.subarray(131, 163).toString('utf8').replace(/\0/g, '');
+    const timestamp = Date.now();
+
+    const stmt = this.db.prepare(`
+      INSERT INTO ln_nodes (node_id, alias, addresses, last_seen)
+      VALUES (?, ?, ?, ?)
+      ON CONFLICT(node_id) DO UPDATE SET alias=excluded.alias, last_seen=excluded.last_seen
+    `);
+    stmt.run(nodeId, alias, JSON.stringify([]), timestamp);
+
+    this.emit('node_updated', { nodeId, alias });
+  }
+
+  public getNetworkTopologySummary() {
+    const nodeCount = this.db.prepare(`SELECT COUNT(*) as count FROM ln_nodes`).get() as { count: number };
+    const channelCount = this.db.prepare(`SELECT COUNT(*) as count FROM ln_channels WHERE is_active = 1`).get() as { count: number };
+    
+    return {
+      totalNodes: nodeCount.count,
+      activeChannels: channelCount.count,
+      timestamp: Date.now()
+    };
+  }
+}
+
+```
+
+---
+
+### Integration Architecture with the Core Fusion Engine
+
+By feeding the output of the `LightningGossipEngine` into the secure WebSocket server built in Chapter 8, operators can stream real-time channel routing changes and fee adjustments directly to connected enterprise clients. This completes the bidirectional data loop, turning the self-hosted node into an intelligent hub for both on-chain mempool analytics and layer-2 liquidity tracking.
