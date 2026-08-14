@@ -271,7 +271,7 @@ export class BitcoinRPC {
 
 ## Chapter 3: Telemetry & Mempool Indexing
 
-While the JSON-RPC interface handles active queries and historical lookups, real-time mempool telemetry requires an event-driven pipeline. Relying on continuous polling(`getrawmempool`) introduces unnecessary network latency and CPU overhead. By hooking directly into Bitcoin Core's **ZeroMQ (ZMQ)** message publishing socket, the Fusion engine captures raw transaction broadcasts the microsecond they hit the node's memory pool.
+While the JSON-RPC interface handles active queries and historical lookups, real-time mempool telemetry requires an event-driven pipeline. Relying on continuous polling (`getrawmempool`) introduces unnecessary network latency and CPU overhead. By hooking directly into Bitcoin Core's **ZeroMQ (ZMQ)** message publishing socket, the Fusion engine captures raw transaction broadcasts the microsecond they hit the node's memory pool.
 
 ### ZeroMQ Architectural Flow
 
