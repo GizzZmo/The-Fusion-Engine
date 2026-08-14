@@ -101,5 +101,168 @@ setInterval(syncMempool, 5000);
 **Deployment Checklist:**
 
 1. **Node:** Bitcoin Core with `txindex=1` and `server=1`.
-2. **Database:** MariaDB/MySQL with optimized schema indexing for transaction lookups.
-3. **License Compliance:** Ensure any proprietary UI extensions or API modifications remain compliant with AGPL-3.0 by serving your source code alongside the interface.
+
+---
+
+## Chapter 1: System Foundations & Sovereign Architecture
+
+To build a production-grade Bitcoin data infrastructure that operates entirely under your own sovereign control, you must first dismantle the reliance on centralized third-party endpoints. The **Fusion Architecture** relies on a three-tier localized stack: the underlying consensus engine (Bitcoin Core), the high-performance indexing layer, and the real-time presentation layer.
+
+### Architectural Schematic (How-To Picture)
+
+The following ASCII diagram illustrates the data pipeline from the Bitcoin P2P network down to the client dashboard:
+
+```text
+ +-------------------------------------------------------+
+ |               Bitcoin P2P Network                     |
+ +---------------------------+---------------------------+
+                             | Block / Tx Stream
+                             v
+ +-------------------------------------------------------+
+ |              Bitcoin Core Node (v27+)                 |
+ |       - txindex=1   - server=1   - rpcauth            |
+ +---------------------------+---------------------------+
+                             | ZeroMQ & JSON-RPC
+                             v
+ +-------------------------------------------------------+
+ |               Fusion Indexer Engine                   |
+ |     (TypeScript / Better-SQLite3 / Custom Buffer)     |
+ +-------+---------------------------------------+-------+
+         |                                       |
+         v (Indexed Local Cache)                 v (Push Telemetry)
+ +-------+-----------------------+     +---------+---------------+
+ |      SQLite Storage           |     |    WebSocket Server     |
+ |  - Transactions & Fees        |     |  - Real-time Subscriptions|
+ +-------------------------------+     +---------+---------------+
+                                                 |
+                                                 v
+                                       +---------+---------------+
+                                       |   Frontend Client App   |
+                                       |  - Live Mempool UI      |
+                                       +-------------------------+
+
+```
+
+---
+
+## Chapter 2: Node Integration & RPC Tunneling
+
+Before any indexing can occur, your Bitcoin Core instance must be tuned for high-throughput data extraction. Default configurations discard memory pool telemetry and lack the historical transaction indexing required for real-time analytics.
+
+### 1. Configuring `bitcoin.conf`
+
+Create or update your node configuration file to enable zero-dependency indexing and RPC authentication:
+
+```ini
+# /etc/bitcoin/bitcoin.conf
+
+# Network and Connection settings
+server=1
+daemon=1
+listen=1
+maxconnections=125
+
+# Required for historical lookups and mempool analysis
+txindex=1
+
+# ZeroMQ notifications for instant block and transaction alerts
+zmqpubrawblock=tcp://127.0.0.1:28332
+zmqpubrawtx=tcp://127.0.0.1:28333
+
+# RPC Credentials (Replace with secure hash generated via rpcauth.py)
+rpcauth=fusion_admin:4c28f...39a
+rpcallowip=127.0.0.1
+rpcport=8332
+
+```
+
+### 2. High-Performance RPC Client Integration
+
+To interface directly with the tuned node without dropping packets, implement a persistent HTTP agent pool in your TypeScript indexing daemon.
+
+```typescript
+// backend/src/rpc-client.ts
+import http from 'http';
+
+interface RPCRequest {
+  jsonrpc: string;
+  id: string | number;
+  method: string;
+  params: any[];
+}
+
+export class BitcoinRPC {
+  private host: string;
+  private port: number;
+  private authHeader: string;
+  private agent: http.Agent;
+
+  constructor(host = '127.0.0.1', port = 8332, user: string, pass: string) {
+    this.host = host;
+    this.port = port;
+    this.authHeader = 'Basic ' + Buffer.from(`${user}:${pass}`).toString('base64');
+    
+    // Maintain persistent socket connections to avoid overhead
+    this.agent = new http.Agent({ keepAlive: true, maxSockets: 50 });
+  }
+
+  public async call<T>(method: string, params: any[] = []): Promise<T> {
+    const payload: RPCRequest = {
+      jsonrpc: '2.0',
+      id: Date.now(),
+      method,
+      params,
+    };
+
+    const data = JSON.stringify(payload);
+
+    const options: http.RequestOptions = {
+      hostname: this.host,
+      port: this.port,
+      path: '/',
+      method: 'POST',
+      agent: this.agent,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': this.authHeader,
+        'Content-Length': Buffer.byteLength(data),
+      },
+    };
+
+    return new Promise((resolve, reject) => {
+      const req = http.request(options, (res) => {
+        let body = '';
+        res.on('data', (chunk) => (body += chunk));
+        res.on('end', () => {
+          try {
+            const response = JSON.parse(body);
+            if (response.error) {
+              reject(new Error(`RPC Error [${response.error.code}]: ${response.error.message}`));
+            } else {
+              resolve(response.result);
+            }
+          } catch (e) {
+            reject(new Error(`Failed to parse RPC response: ${body}`));
+          }
+        });
+      });
+
+      req.on('error', (err) => reject(err));
+      req.write(data);
+      req.end();
+    });
+  }
+}
+
+```
+
+---
+
+## Illustration Concept: The Sovereign Node Cluster
+
+> **Visual Asset Specification (For AI Generation / Documentation Graphics):**
+> * **Style:** Cyberpunk-minimalist technical blueprint, dark slate background (`#0B0F19`), neon cyan (`#00F2FE`) and emerald green (`#10B981`) vector traces.
+> * **Subject:** A stylized isometric cluster of 3 bare-metal rack servers connected by glowing fiber pathways labeled "ZeroMQ Pipe," terminating at a central dashboard interface showing real-time mempool fee distributions.
+> * **Typography:** Monospace headers with technical grid overlays.
+3. **Database:** MariaDB/MySQL with optimized schema indexing for transaction lookups.
+4. **License Compliance:** Ensure any proprietary UI extensions or API modifications remain compliant with AGPL-3.0 by serving your source code alongside the interface.
