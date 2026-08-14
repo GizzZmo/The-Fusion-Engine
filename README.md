@@ -510,145 +510,6 @@ By leveraging modern bundling and statically compiled runtimes, we avoid native 
 
 ## Chapter 7: Lightning Network Telemetry & Gossip Protocol Integration
 
-Scaling beyond base layer mempool mechanics, the Fusion architecture natively integrates **Lightning Network Daemon (LND)** and **Core Lightning (CLN)** telemetry streams. The underlying network relies on the **Gossip Protocol** (defined across the Basis of Lightning Technology / BOLT standards) to disseminate network graph updates.
-
-### Gossip Message Types Handled by Fusion:
-
-1. **Channel Announcements (`channel_announcement`):** Validates the opening of a new funding transaction on-chain between two nodes.
-2. **Channel Updates (`channel_update`):** Broadcasts routing policy adjustments, base fees, proportional fee rates (ppm), and timelock deltas.
-3. **Node Announcements (`node_announcement`):** Tracks node alias changes, network feature bits, and cryptographic identity keys.
-
-### Lightning Gossip Stream Consumer
-
-```typescript
-// backend/src/lightning-gossip.ts
-import { EventEmitter } from 'events';
-
-export class LightningGossipParser extends EventEmitter {
-  constructor() {
-    super();
-  }
-
-  // Simulated ingestion of BOLT gossip packets from LND / CLN gRPC/TCP streams
-  public ingestGossipPacket(messageType: number, payload: Buffer) {
-    switch (messageType) {
-      case 256: // channel_announcement
-        this.parseChannelAnnouncement(payload);
-        break;
-      case 257: // channel_update
-        this.parseChannelUpdate(payload);
-        break;
-      case 258: // node_announcement
-        this.parseNodeAnnouncement(payload);
-        break;
-      default:
-        // Ignore unhandled gossip types
-        break;
-    }
-  }
-
-  private parseChannelAnnouncement(buf: Buffer) {
-    const shortChannelId = buf.readBigUInt64BE(256); // Simplified structural offset
-    this.emit('topology_change', { type: 'channel_open', scid: shortChannelId.toString() });
-  }
-
-  private parseChannelUpdate(buf: Buffer) {
-    // Extract routing fees and policy changes
-    this.emit('fee_update', { rawLength: buf.length });
-  }
-
-  private parseNodeAnnouncement(buf: Buffer) {
-    this.emit('node_discovery', { timestamp: Date.now() });
-  }
-}
-
-```
-
----
-
-## Chapter 8: Security, Hardening & TLS/SSL WebSocket Termination
-
-When exposing real-time financial telemetry over public interfaces, cleartext WebSockets (`ws://`) present severe interception and man-in-the-middle vulnerabilities. Enterprise security demands rigid TLS/SSL encapsulation (`wss://`) utilizing automated certificate generation.
-
-### Complete Code Implementation: Hardened Secure WebSocket Server
-
-```typescript
-// backend/src/secure-ws.ts
-import fs from 'fs';
-import https from 'https';
-import { WebSocketServer, WebSocket } from 'express-ws'; // or 'ws' standard library with https wrapper
-import { parse as parseUrl } from 'url';
-
-export class SecureFusionServer {
-  private server: https.Server;
-  private wss: WebSocketServer;
-
-  constructor(port: number, certPath: string, keyPath: string) {
-    // Enforce strict TLS options
-    const serverOptions = {
-      cert: fs.readFileSync(certPath),
-      key: fs.readFileSync(keyPath),
-      minVersion: 'TLSv1.2' as const,
-      ciphers: [
-        'ECDHE-ECDSA-AES128-GCM-SHA256',
-        'ECDHE-RSA-AES128-GCM-SHA256',
-        'ECDHE-ECDSA-AES256-GCM-SHA384',
-        'ECDHE-RSA-AES256-GCM-SHA384'
-      ].join(':'),
-      honorCipherOrder: true
-    };
-
-    this.server = https.createServer(serverOptions);
-    this.wss = new (require('ws').Server)({ server: this.server });
-
-    this.initHandlers();
-    this.server.listen(port, () => {
-      console.log(`[Secure Server] Fusion WSS listening securely on port ${port}`);
-    });
-  }
-
-  private initHandlers() {
-    this.wss.on('connection', (ws: WebSocket, req) => {
-      const parameters = parseUrl(req.url || '', true);
-      
-      // Token-based authorization check on handshake query parameters
-      if (!parameters.query.token || parameters.query.token !== process.env.FUSION_SECURE_TOKEN) {
-        ws.send(JSON.stringify({ error: 'Unauthorized connection attempt. Invalid or missing token.' }));
-        return ws.terminate();
-      }
-
-      ws.on('message', (message) => {
-        // Handle authorized real-time telemetry streaming safely
-      });
-    });
-  }
-}
-
-```
-
----
-
-## Theoretical Afterword: The Socio-Economic Philosophy of Sovereign Data
-
-> *"True digital sovereignty does not ask permission from an API gateway; it verifies the mathematical truth of the network locally."*
-
-The architecture of **Fusion** transcends raw code optimization. Centralized cloud infrastructure has conditioned modern digital society to rent its own perception of reality. By outsourcing transaction indexing, route planning, and network discovery to third-party endpoints, participants surrender not only their metadata but their operational autonomy.
-
-Sovereign computing via self-hosted nodes and local-first databases restores the balance of power. It treats telemetry as private property rather than harvested commodity. When an individual compiles a cross-platform binary, runs a local Bitcoin core instance, and listens directly to decentralized gossip streams without corporate intermediaries, they are exercising structural resistance against systemic platform enclosure. The Fusion framework is thus an architectural manifestation of self-reliance—a bridge toward unmediated financial agency.
-
----
-
-### Summary of the Blueprint (Chapters 1-8)
-
-* **Chapters 1-2 (Foundations & Node Setup):** Established a decentralized, zero-dependency data baseline through Bitcoin Core tuning (`bitcoin.conf`) and persistent RPC connection handling.
-* **Chapters 3-4 (Telemetry & Storage):** Implemented real-time ZeroMQ socket ingestion coupled with WAL-optimized SQLite for ultra-fast, zero-overhead transaction indexing.
-* **Chapter 5 (Reactive API Layer):** Transitioned the architecture from polling models to event-driven push pipelines.
-* **Chapter 6 (Cross-Platform Compilation):** Ensured absolute environment parity across Windows (x86/x64), RedHat Linux, and Apple Silicon (ARM64) architectures.
-* **Chapter 7 (Lightning Network Integration):** Expanded network telemetry capture to parse LND and Core Lightning gossip protocols (`channel_announcement`, `channel_update`, `node_announcement`).
-* **Chapter 8 (Security & Hardening):** Secured data pipes through enforced TLS/SSL termination (`wss://`) and token-authenticated WebSocket handshakes.
-
-* ## Chapter 7: Lightning Network Telemetry & Gossip Protocol Integration
-
 Scaling the Fusion architecture from base-layer Bitcoin mempool analysis into the second layer requires direct integration with the Lightning Network. The Lightning Network operates through an asynchronous, peer-to-peer gossip protocol defined by the **Basis of Lightning Technology (BOLT #7)** specifications. This protocol allows nodes to discover peers, map channel topologies, and track dynamic routing fees in real-time without centralized authorities.
 
 ### The Gossip Protocol Topology
@@ -837,3 +698,88 @@ export class LightningGossipEngine extends EventEmitter {
 ### Integration Architecture with the Core Fusion Engine
 
 By feeding the output of the `LightningGossipEngine` into the secure WebSocket server built in Chapter 8, operators can stream real-time channel routing changes and fee adjustments directly to connected enterprise clients. This completes the bidirectional data loop, turning the self-hosted node into an intelligent hub for both on-chain mempool analytics and layer-2 liquidity tracking.
+```
+
+---
+
+## Chapter 8: Security, Hardening & TLS/SSL WebSocket Termination
+
+When exposing real-time financial telemetry over public interfaces, cleartext WebSockets (`ws://`) present severe interception and man-in-the-middle vulnerabilities. Enterprise security demands rigid TLS/SSL encapsulation (`wss://`) utilizing automated certificate generation.
+
+### Complete Code Implementation: Hardened Secure WebSocket Server
+
+```typescript
+// backend/src/secure-ws.ts
+import fs from 'fs';
+import https from 'https';
+import { WebSocketServer, WebSocket } from 'express-ws'; // or 'ws' standard library with https wrapper
+import { parse as parseUrl } from 'url';
+
+export class SecureFusionServer {
+  private server: https.Server;
+  private wss: WebSocketServer;
+
+  constructor(port: number, certPath: string, keyPath: string) {
+    // Enforce strict TLS options
+    const serverOptions = {
+      cert: fs.readFileSync(certPath),
+      key: fs.readFileSync(keyPath),
+      minVersion: 'TLSv1.2' as const,
+      ciphers: [
+        'ECDHE-ECDSA-AES128-GCM-SHA256',
+        'ECDHE-RSA-AES128-GCM-SHA256',
+        'ECDHE-ECDSA-AES256-GCM-SHA384',
+        'ECDHE-RSA-AES256-GCM-SHA384'
+      ].join(':'),
+      honorCipherOrder: true
+    };
+
+    this.server = https.createServer(serverOptions);
+    this.wss = new (require('ws').Server)({ server: this.server });
+
+    this.initHandlers();
+    this.server.listen(port, () => {
+      console.log(`[Secure Server] Fusion WSS listening securely on port ${port}`);
+    });
+  }
+
+  private initHandlers() {
+    this.wss.on('connection', (ws: WebSocket, req) => {
+      const parameters = parseUrl(req.url || '', true);
+      
+      // Token-based authorization check on handshake query parameters
+      if (!parameters.query.token || parameters.query.token !== process.env.FUSION_SECURE_TOKEN) {
+        ws.send(JSON.stringify({ error: 'Unauthorized connection attempt. Invalid or missing token.' }));
+        return ws.terminate();
+      }
+
+      ws.on('message', (message) => {
+        // Handle authorized real-time telemetry streaming safely
+      });
+    });
+  }
+}
+
+```
+
+---
+
+## Theoretical Afterword: The Socio-Economic Philosophy of Sovereign Data
+
+> *"True digital sovereignty does not ask permission from an API gateway; it verifies the mathematical truth of the network locally."*
+
+The architecture of **Fusion** transcends raw code optimization. Centralized cloud infrastructure has conditioned modern digital society to rent its own perception of reality. By outsourcing transaction indexing, route planning, and network discovery to third-party endpoints, participants surrender not only their metadata but their operational autonomy.
+
+Sovereign computing via self-hosted nodes and local-first databases restores the balance of power. It treats telemetry as private property rather than harvested commodity. When an individual compiles a cross-platform binary, runs a local Bitcoin core instance, and listens directly to decentralized gossip streams without corporate intermediaries, they are exercising structural resistance against systemic platform enclosure. The Fusion framework is thus an architectural manifestation of self-reliance—a bridge toward unmediated financial agency.
+
+---
+
+### Summary of the Blueprint (Chapters 1-8)
+
+* **Chapters 1-2 (Foundations & Node Setup):** Established a decentralized, zero-dependency data baseline through Bitcoin Core tuning (`bitcoin.conf`) and persistent RPC connection handling.
+* **Chapters 3-4 (Telemetry & Storage):** Implemented real-time ZeroMQ socket ingestion coupled with WAL-optimized SQLite for ultra-fast, zero-overhead transaction indexing.
+* **Chapter 5 (Reactive API Layer):** Transitioned the architecture from polling models to event-driven push pipelines.
+* **Chapter 6 (Cross-Platform Compilation):** Ensured absolute environment parity across Windows (x86/x64), RedHat Linux, and Apple Silicon (ARM64) architectures.
+* **Chapter 7 (Lightning Network Integration):** Expanded network telemetry capture to parse LND and Core Lightning gossip protocols (`channel_announcement`, `channel_update`, `node_announcement`).
+* **Chapter 8 (Security & Hardening):** Secured data pipes through enforced TLS/SSL termination (`wss://`) and token-authenticated WebSocket handshakes.
+
