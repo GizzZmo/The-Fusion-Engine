@@ -266,3 +266,163 @@ export class BitcoinRPC {
 > * **Typography:** Monospace headers with technical grid overlays.
 3. **Database:** MariaDB/MySQL with optimized schema indexing for transaction lookups.
 4. **License Compliance:** Ensure any proprietary UI extensions or API modifications remain compliant with AGPL-3.0 by serving your source code alongside the interface.
+>
+> ---
+
+## Chapter 3: Telemetry & Mempool Indexing
+
+While the JSON-RPC interface handles active queries and historical lookups, real-time mempool telemetry requires an event-driven pipeline. Relying on continuous polling (`getrawmempool`) introduces unnecessary network latency and CPU overhead. By hooking directly into Bitcoin Core's **ZeroMQ (ZMQ)** message publishing socket, the Fusion engine captures raw transaction broadcasts the microsecond they hit the node's memory pool.
+
+### ZeroMQ Architectural Flow
+
+```text
+ +-------------------------------------------------------+
+ |                 Bitcoin Core Node                     |
+ |        Publishes to: tcp://127.0.0.1:28333            |
+ +---------------------------+---------------------------+
+                             | ZMQ `rawtx` Byte Stream
+                             v
+ +-------------------------------------------------------+
+ |                Fusion ZMQ Subscriber                  |
+ |  - Buffer Decoders   - Varint Parsers   - TxID Hash   |
+ +---------------------------+---------------------------+
+                             | Decoded Transaction Object
+                             v
+ +-------------------------------------------------------+
+ |               Local SQLite Ingestion                  |
+ +-------------------------------------------------------+
+
+```
+
+### Complete Code Implementation: ZeroMQ Mempool Ingestion Daemon
+
+To ingest raw byte streams from Bitcoin Core using Node.js, we implement a persistent ZMQ socket listener that decodes incoming raw transactions and extracts core metrics (fee, size, witness data).
+
+```typescript
+// backend/src/zmq-listener.ts
+import zmq from 'zeromq';
+import { BitcoinRPC } from './rpc-client';
+import { Storage } from './db';
+
+export class MempoolStreamListener {
+  private sock: zmq.Subscriber;
+  private rpc: BitcoinRPC;
+  private endpoint: string;
+
+  constructor(rpcClient: BitcoinRPC, zmqEndpoint = 'tcp://127.0.0.1:28333') {
+    this.sock = new zmq.Subscriber();
+    this.rpc = rpcClient;
+    this.endpoint = zmqEndpoint;
+  }
+
+  public async start() {
+    this.sock.connect(this.endpoint);
+    this.sock.subscribe('rawtx');
+    console.log(`[ZMQ] Listening for raw transactions on ${this.endpoint}...`);
+
+    for await (const [topic, msg] of this.sock) {
+      if (topic.toString() === 'rawtx') {
+        await this.handleRawTransaction(msg);
+      }
+    }
+  }
+
+  private async handleRawTransaction(buffer: Buffer) {
+    try {
+      const rawHex = buffer.toString('hex');
+      
+      // Decode transaction metadata via Bitcoin RPC decoder
+      const decodedTx: any = await this.rpc.call('decoderawtransaction', [rawHex]);
+      const txid = decodedTx.txid;
+      const size = decodedTx.size;
+      
+      // Calculate or fetch fee (if available via mempool entry or custom calculation)
+      const mempoolEntry: any = await this.rpc.call('getmempoolentry', [txid]).catch(() => null);
+      const fee = mempoolEntry ? Math.round(mempoolEntry.fee * 100000000) : 0; // Converted to Sats
+
+      // Persist directly to local SQLite storage
+      Storage.saveTransaction(txid, fee, size, JSON.stringify(decodedTx));
+      console.log(`[Indexed] TxID: ${txid} | Size: ${size} bytes | Fee: ${fee} sats`);
+    } catch (err: any) {
+      console.error(`[ZMQ Error] Failed to parse transaction: ${err.message}`);
+    }
+  }
+}
+
+```
+
+---
+
+## Chapter 4: Local-First Database Strategy
+
+High-frequency blockchain indexing requires a database engine optimized for rapid write operations, low resource consumption, and zero external service dependencies. The Fusion architecture utilizes **Better-SQLite3** configured in Write-Ahead Logging (WAL) mode to allow concurrent reads while batch-writing real-time telemetry.
+
+### Performance Tuning & WAL Configuration
+
+By default, standard SQLite installations lock tables during write operations. Enabling WAL mode and adjusting synchronous flags drastically increases transaction throughput.
+
+### Complete Code Implementation: Optimized Storage Engine
+
+```typescript
+// backend/src/db.ts
+import Database from 'better-sqlite3';
+import path from 'path';
+
+const dbPath = path.resolve(__dirname, '../fusion_core.db');
+const db = new Database(dbPath);
+
+// Enable high-performance Write-Ahead Logging and cache tuning
+db.pragma('journal_mode = WAL');
+db.pragma('synchronous = NORMAL');
+db.pragma('cache_size = -64000'); // Allocate ~64MB RAM for query caching
+
+export function initializeDatabase() {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS transactions (
+      txid TEXT PRIMARY KEY,
+      fee INTEGER,
+      size INTEGER,
+      feerate REAL,
+      received_at INTEGER,
+      raw_json TEXT
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_feerate ON transactions(feerate DESC);
+    CREATE INDEX IF NOT EXISTS idx_received ON transactions(received_at DESC);
+  `);
+  console.log('[Database] Fusion core storage initialized with WAL optimization.');
+}
+
+export const Storage = {
+  saveTransaction(txid: string, fee: number, size: number, rawJson: string) {
+    const feerate = size > 0 ? fee / size : 0;
+    const stmt = db.prepare(`
+      INSERT OR IGNORE INTO transactions (txid, fee, size, feerate, received_at, raw_json)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `);
+    stmt.run(txid, fee, size, feerate, Date.now(), rawJson);
+  },
+
+  getMempoolStats() {
+    const stmt = db.prepare(`
+      SELECT 
+        COUNT(*) as total_count,
+        SUM(size) as total_size,
+        AVG(feerate) as avg_feerate
+      FROM transactions
+    `);
+    return stmt.get();
+  },
+
+  getRecentTransactions(limit: number = 25) {
+    const stmt = db.prepare(`
+      SELECT txid, fee, size, feerate, received_at 
+      FROM transactions 
+      ORDER BY received_at DESC 
+      LIMIT ?
+    `);
+    return stmt.all(limit);
+  }
+};
+
+```
