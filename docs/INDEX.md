@@ -2,7 +2,13 @@
 
 Bilingual table of contents for the Fusion Engine blueprint.
 
-Full Norwegian overview: [`BLUEPRINT_NO.md`](BLUEPRINT_NO.md)
+| Resource | Link |
+|----------|------|
+| Full Norwegian blueprint | [docs/BLUEPRINT_NO.md](https://github.com/GizzZmo/The-Fusion-Engine/blob/main/docs/BLUEPRINT_NO.md) · [raw](https://raw.githubusercontent.com/GizzZmo/The-Fusion-Engine/main/docs/BLUEPRINT_NO.md) |
+| All direct links | [docs/LINKS.md](LINKS.md) |
+| BOLT 7 parser | [backend/src/bolt7-parser.ts](https://github.com/GizzZmo/The-Fusion-Engine/blob/main/backend/src/bolt7-parser.ts) · [raw](https://raw.githubusercontent.com/GizzZmo/The-Fusion-Engine/main/backend/src/bolt7-parser.ts) |
+| Gossip engine | [backend/src/lightning-gossip-engine.ts](https://github.com/GizzZmo/The-Fusion-Engine/blob/main/backend/src/lightning-gossip-engine.ts) · [raw](https://raw.githubusercontent.com/GizzZmo/The-Fusion-Engine/main/backend/src/lightning-gossip-engine.ts) |
+| README | [README.md](https://github.com/GizzZmo/The-Fusion-Engine/blob/main/README.md) |
 
 ---
 
@@ -30,9 +36,11 @@ Local-first sovereignty, Bitcoin Core tuning (`txindex`, ZeroMQ), high-performan
 
 Event-driven WebSocket API, cross-platform binaries, sequential BOLT 7 gossip parser (channel graph + fee policies), and TLS-hardened token-authenticated transport.
 
-**Chapter 7 source:**
-- [`backend/src/bolt7-parser.ts`](../backend/src/bolt7-parser.ts)
-- [`backend/src/lightning-gossip-engine.ts`](../backend/src/lightning-gossip-engine.ts)
+**Chapter 7 source (direct links):**
+- Parser: https://github.com/GizzZmo/The-Fusion-Engine/blob/main/backend/src/bolt7-parser.ts
+- Engine: https://github.com/GizzZmo/The-Fusion-Engine/blob/main/backend/src/lightning-gossip-engine.ts
+- Raw parser: https://raw.githubusercontent.com/GizzZmo/The-Fusion-Engine/main/backend/src/bolt7-parser.ts
+- Raw engine: https://raw.githubusercontent.com/GizzZmo/The-Fusion-Engine/main/backend/src/lightning-gossip-engine.ts
 
 Message types: `256` channel_announcement · `257` node_announcement · `258` channel_update
 
