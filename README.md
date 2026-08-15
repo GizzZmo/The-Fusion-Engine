@@ -48,3 +48,9 @@ node dist/index.js
 Once launched, the engine will initialize the WAL-optimized SQLite store and begin streaming mempool telemetry. Connect your frontend dashboard to the secure WebSocket endpoint:
 wss://your-domain.local:8080?token=[FUSION_SECURE_TOKEN]
 
+## About The Fusion Engine
+
+The Fusion Engine is a sovereign, self-hosted data infrastructure built to index, parse, and stream real-time Bitcoin mempool and Lightning Network telemetry without relying on third-party API providers. Designed for high performance and strict data privacy, the framework combines a tuned Bitcoin Core node, ZeroMQ zero-latency ingestion pipelines, a Write-Ahead Logging (WAL) optimized SQLite storage layer, and a robust BOLT 7 gossip parser.
+
+By providing cross-platform binary compilation, secure TLS-terminated WebSocket broadcasting, and dynamic multi-tenancy support, The Fusion Engine empowers operators to maintain total control over their network perception, transitioning financial data infrastructure from a rented cloud resource into unmediated, sovereign property.
+
