@@ -1,23 +1,27 @@
-# Fusion Engine — GitHub Pages
-
-This branch (`gh-pages`) hosts the project documentation site.
+# Fusion Engine — GitHub Pages (speed-optimized)
 
 **Live URL (after enabling Pages):** https://gizzzmo.github.io/The-Fusion-Engine/
 
-## Enable GitHub Pages
+## Performance choices
 
-1. Open **Settings → Pages** on the repository.
-2. Under **Build and deployment → Source**, choose **Deploy from a branch**.
-3. Branch: **`gh-pages`** / folder: **`/ (root)`**.
-4. Save. The site is usually live within a minute.
+| Optimization | Effect |
+|--------------|--------|
+| **System font stack** | No Google Fonts / extra DNS + TLS + CSS |
+| **Critical CSS inlined** | First paint without waiting for `styles.css` |
+| **Single HTML document** | One request for the landing page |
+| **`content-visibility: auto`** | Deferred layout for below-the-fold sections |
+| **No JS** | Zero main-thread script cost |
+| **GitHub CDN** | Automatic gzip/brotli + edge cache |
 
-## Site contents
+## Enable Pages
 
-- `index.html` — landing page with bilingual architecture index and direct links
-- `styles.css` — dark theme styles
+1. **Settings → Pages**
+2. Source: **Deploy from a branch**
+3. Branch: **`gh-pages`** / **`/ (root)`**
+4. Save → site gets HTTPS automatically on `*.github.io`
 
-Primary docs remain on `main`:
+## Further gains (optional)
 
-- https://github.com/GizzZmo/The-Fusion-Engine/blob/main/README.md
-- https://github.com/GizzZmo/The-Fusion-Engine/blob/main/docs/BLUEPRINT_NO.md
-- https://github.com/GizzZmo/The-Fusion-Engine/blob/main/backend/src/bolt7-parser.ts
+- Custom domain + Cloudflare proxy for extra caching / HTTP/3
+- Keep assets tiny; avoid large images without `width`/`height` and modern formats (AVIF/WebP)
+- Prefer relative links on-site; hotlink only to GitHub when intentional
