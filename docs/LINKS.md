@@ -2,6 +2,12 @@
 
 Absolute links to documentation and source on `main`.
 
+## Primary entry point
+
+| Document | GitHub | Raw |
+|----------|--------|-----|
+| **README.md** (full blueprint + code) | https://github.com/GizzZmo/The-Fusion-Engine/blob/main/README.md | https://raw.githubusercontent.com/GizzZmo/The-Fusion-Engine/main/README.md |
+
 ## Documentation
 
 | Document | GitHub | Raw |
@@ -9,6 +15,7 @@ Absolute links to documentation and source on `main`.
 | README (blueprint + code) | https://github.com/GizzZmo/The-Fusion-Engine/blob/main/README.md | https://raw.githubusercontent.com/GizzZmo/The-Fusion-Engine/main/README.md |
 | Norwegian blueprint | https://github.com/GizzZmo/The-Fusion-Engine/blob/main/docs/BLUEPRINT_NO.md | https://raw.githubusercontent.com/GizzZmo/The-Fusion-Engine/main/docs/BLUEPRINT_NO.md |
 | Bilingual index | https://github.com/GizzZmo/The-Fusion-Engine/blob/docs/english-index-readme/docs/INDEX.md | https://raw.githubusercontent.com/GizzZmo/The-Fusion-Engine/docs/english-index-readme/docs/INDEX.md |
+| This link hub | https://github.com/GizzZmo/The-Fusion-Engine/blob/docs/english-index-readme/docs/LINKS.md | https://raw.githubusercontent.com/GizzZmo/The-Fusion-Engine/docs/english-index-readme/docs/LINKS.md |
 
 ## Source code (BOLT 7 / Lightning gossip)
 
@@ -28,4 +35,5 @@ Absolute links to documentation and source on `main`.
 ## Repository
 
 - **Repo:** https://github.com/GizzZmo/The-Fusion-Engine
+- **README:** https://github.com/GizzZmo/The-Fusion-Engine/blob/main/README.md
 - **Default branch:** `main`

@@ -2,13 +2,15 @@
 
 Bilingual table of contents for the Fusion Engine blueprint.
 
-| Resource | Link |
-|----------|------|
-| Full Norwegian blueprint | [docs/BLUEPRINT_NO.md](https://github.com/GizzZmo/The-Fusion-Engine/blob/main/docs/BLUEPRINT_NO.md) · [raw](https://raw.githubusercontent.com/GizzZmo/The-Fusion-Engine/main/docs/BLUEPRINT_NO.md) |
-| All direct links | [docs/LINKS.md](LINKS.md) |
-| BOLT 7 parser | [backend/src/bolt7-parser.ts](https://github.com/GizzZmo/The-Fusion-Engine/blob/main/backend/src/bolt7-parser.ts) · [raw](https://raw.githubusercontent.com/GizzZmo/The-Fusion-Engine/main/backend/src/bolt7-parser.ts) |
-| Gossip engine | [backend/src/lightning-gossip-engine.ts](https://github.com/GizzZmo/The-Fusion-Engine/blob/main/backend/src/lightning-gossip-engine.ts) · [raw](https://raw.githubusercontent.com/GizzZmo/The-Fusion-Engine/main/backend/src/lightning-gossip-engine.ts) |
-| README | [README.md](https://github.com/GizzZmo/The-Fusion-Engine/blob/main/README.md) |
+## Direct links
+
+| Resource | GitHub | Raw |
+|----------|--------|-----|
+| **README.md** | https://github.com/GizzZmo/The-Fusion-Engine/blob/main/README.md | https://raw.githubusercontent.com/GizzZmo/The-Fusion-Engine/main/README.md |
+| Norwegian blueprint | https://github.com/GizzZmo/The-Fusion-Engine/blob/main/docs/BLUEPRINT_NO.md | https://raw.githubusercontent.com/GizzZmo/The-Fusion-Engine/main/docs/BLUEPRINT_NO.md |
+| All links | [docs/LINKS.md](https://github.com/GizzZmo/The-Fusion-Engine/blob/docs/english-index-readme/docs/LINKS.md) | — |
+| BOLT 7 parser | https://github.com/GizzZmo/The-Fusion-Engine/blob/main/backend/src/bolt7-parser.ts | https://raw.githubusercontent.com/GizzZmo/The-Fusion-Engine/main/backend/src/bolt7-parser.ts |
+| Gossip engine | https://github.com/GizzZmo/The-Fusion-Engine/blob/main/backend/src/lightning-gossip-engine.ts | https://raw.githubusercontent.com/GizzZmo/The-Fusion-Engine/main/backend/src/lightning-gossip-engine.ts |
 
 ---
 
@@ -72,3 +74,5 @@ Fee histograms & queue prediction, mining/hashrate insight, multi-layer (UTXO �
 | 3 Analytics & Operations | 9–16 | Enterprise tooling, compliance, multi-tenancy |
 
 *Fusion transforms a raw Bitcoin node into an enterprise-ready, sovereign infrastructure for on-chain and Lightning data.*
+
+**Start here:** https://github.com/GizzZmo/The-Fusion-Engine/blob/main/README.md
