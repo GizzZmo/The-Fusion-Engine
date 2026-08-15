@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>The Fusion Engine — Sovereign Bitcoin Data Plane</title>
+  <meta name="description" content="Local-first Bitcoin & Lightning infrastructure: sequential BOLT 7 parser, ZeroMQ telemetry, WAL SQLite, reactive API." />
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+</head>
+<body>
+  <header class="hero">
+    <div class="container">
+      <p class="eyebrow">GizzZmo / The-Fusion-Engine</p>
+      <h1>The Fusion Engine</h1>
+      <p class="tagline">
+        Local-first Bitcoin &amp; Lightning data plane — your node is the only source of truth.
+      </p>
+      <div class="cta-row">
+        <a class="btn primary" href="https://github.com/GizzZmo/The-Fusion-Engine/blob/main/README.md">README.md</a>
+        <a class="btn" href="https://github.com/GizzZmo/The-Fusion-Engine">GitHub repository</a>
+        <a class="btn" href="https://raw.githubusercontent.com/GizzZmo/The-Fusion-Engine/main/README.md">Raw README</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="container">
+    <section>
+      <h2>Quick links</h2>
+      <div class="card-grid">
+        <a class="card" href="https://github.com/GizzZmo/The-Fusion-Engine/blob/main/README.md">
+          <h3>README.md</h3>
+          <p>Full English blueprint + embedded code chapters 1–16</p>
+          <span class="mono">blob/main/README.md</span>
+        </a>
+        <a class="card" href="https://github.com/GizzZmo/The-Fusion-Engine/blob/main/docs/BLUEPRINT_NO.md">
+          <h3>Norwegian blueprint</h3>
+          <p>Omfattende teknisk blåkopi (Kapittel 1–16)</p>
+          <span class="mono">docs/BLUEPRINT_NO.md</span>
+        </a>
+        <a class="card" href="https://github.com/GizzZmo/The-Fusion-Engine/blob/main/backend/src/bolt7-parser.ts">
+          <h3>BOLT 7 parser</h3>
+          <p>Sequential parser — types 256 / 257 / 258</p>
+          <span class="mono">backend/src/bolt7-parser.ts</span>
+        </a>
+        <a class="card" href="https://github.com/GizzZmo/The-Fusion-Engine/blob/main/backend/src/lightning-gossip-engine.ts">
+          <h3>Gossip engine</h3>
+          <p>SQLite topology + direction-aware fee policies</p>
+          <span class="mono">backend/src/lightning-gossip-engine.ts</span>
+        </a>
+      </div>
+    </section>
+
+    <section>
+      <h2>Architecture index</h2>
+      <div class="parts">
+        <article class="part">
+          <h3>Part 1 — Foundations <span class="no">Del 1: Fundamentet</span></h3>
+          <ol>
+            <li>System Foundations &amp; Sovereignty</li>
+            <li>Node Integration &amp; RPC Tunneling</li>
+            <li>Telemetry &amp; Mempool Indexing</li>
+            <li>Local-First Database Strategy (WAL)</li>
+          </ol>
+        </article>
+        <article class="part">
+          <h3>Part 2 — Expansion &amp; Lightning <span class="no">Del 2</span></h3>
+          <ol start="5">
+            <li>Reactive API Layer</li>
+            <li>Cross-Platform Compilation</li>
+            <li>Lightning Gossip &amp; Topology <em>(sequential BOLT 7)</em></li>
+            <li>Security, Hardening &amp; TLS</li>
+          </ol>
+        </article>
+        <article class="part">
+          <h3>Part 3 — Analytics &amp; Operations <span class="no">Del 3</span></h3>
+          <ol start="9">
+            <li>Advanced Analytics &amp; Fee Histograms</li>
+            <li>Mining &amp; Hashrate Tracking</li>
+            <li>Multi-Layer Connectivity</li>
+            <li>Accelerator Pro (CPFP/RBF)</li>
+            <li>Policy &amp; Compliance</li>
+            <li>Dynamic Multi-Tenancy</li>
+            <li>Support &amp; Self-Healing</li>
+            <li>Future Roadmap (Nostr / ZK)</li>
+          </ol>
+        </article>
+      </div>
+    </section>
+
+    <section>
+      <h2>BOLT 7 message types</h2>
+      <table>
+        <thead>
+          <tr><th>Type</th><th>Message</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>256</code></td><td>channel_announcement</td></tr>
+          <tr><td><code>257</code></td><td>node_announcement</td></tr>
+          <tr><td><code>258</code></td><td>channel_update</td></tr>
+        </tbody>
+      </table>
+      <p class="note">
+        Sequential parser handles variable-length <code>features</code> and address descriptors.
+        Source:
+        <a href="https://raw.githubusercontent.com/GizzZmo/The-Fusion-Engine/main/backend/src/bolt7-parser.ts">raw parser</a>
+        ·
+        <a href="https://raw.githubusercontent.com/GizzZmo/The-Fusion-Engine/main/backend/src/lightning-gossip-engine.ts">raw engine</a>
+      </p>
+    </section>
+
+    <section>
+      <h2>Raw / download links</h2>
+      <ul class="link-list">
+        <li><a href="https://raw.githubusercontent.com/GizzZmo/The-Fusion-Engine/main/README.md">README.md (raw)</a></li>
+        <li><a href="https://raw.githubusercontent.com/GizzZmo/The-Fusion-Engine/main/docs/BLUEPRINT_NO.md">BLUEPRINT_NO.md (raw)</a></li>
+        <li><a href="https://raw.githubusercontent.com/GizzZmo/The-Fusion-Engine/main/backend/src/bolt7-parser.ts">bolt7-parser.ts (raw)</a></li>
+        <li><a href="https://raw.githubusercontent.com/GizzZmo/The-Fusion-Engine/main/backend/src/lightning-gossip-engine.ts">lightning-gossip-engine.ts (raw)</a></li>
+      </ul>
+    </section>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Fusion — digital sovereignty through local-first Bitcoin infrastructure.</p>
+      <p class="mono"><a href="https://github.com/GizzZmo/The-Fusion-Engine">github.com/GizzZmo/The-Fusion-Engine</a></p>
+    </div>
+  </footer>
+</body>
+</html>

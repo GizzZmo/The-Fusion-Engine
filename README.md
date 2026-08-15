@@ -1,56 +1,23 @@
-# The-Fusion-Engine
+# Fusion Engine — GitHub Pages
 
-> **Note:** Full refined documentation is being applied. See PR for complete content.
+This branch (`gh-pages`) hosts the project documentation site.
 
-## Temporary notice
+**Live URL (after enabling Pages):** https://gizzzmo.github.io/The-Fusion-Engine/
 
-The complete README update (57 KB refined bilingual blueprint) follows in the next commit.
+## Enable GitHub Pages
 
-The Fusion Engine: Quick Start Guide
-This guide provides the minimal steps to bootstrap a self-hosted, sovereign Bitcoin and Lightning data infrastructure using The Fusion Engine.
-1. Prerequisites
-Node.js: v20+ LTS
-Bitcoin Core: v27+ (with txindex=1 and server=1 enabled)
-Operating System: Compatible with Linux (RHEL/Ubuntu), macOS Silicon, or Windows x64.
-2. Installation
-# Clone the repository
-git clone https://github.com/GizzZmo/The-Fusion-Engine
-cd The-Fusion-Engine
+1. Open **Settings → Pages** on the repository.
+2. Under **Build and deployment → Source**, choose **Deploy from a branch**.
+3. Branch: **`gh-pages`** / folder: **`/ (root)`**.
+4. Save. The site is usually live within a minute.
 
-# Install dependencies
-npm install
+## Site contents
 
-# Build the cross-platform binary
-npm run build
-    
-3. Node Configuration
-Ensure your bitcoin.conf contains the following essential settings:
-txindex=1
-server=1
-zmqpubrawblock=tcp://127.0.0.1:28332
-zmqpubrawtx=tcp://127.0.0.1:28333
-rpcauth=fusion_admin:[YOUR_GENERATED_HASH]
-    
-4. Environment Setup
-Create a .env file in the root directory:
-BITCOIN_RPC_USER=fusion_admin
-BITCOIN_RPC_PASS=[YOUR_PASSWORD]
-WS_PORT=8080
-SSL_CERT_PATH=./certs/server.cert
-SSL_KEY_PATH=./certs/server.key
-FUSION_SECURE_TOKEN=[GENERATE_SECURE_RANDOM_TOKEN]
-    
-5. Launching the Engine
-# Start the production-ready service
-node dist/index.js
-    
-6. Integration & Verification
-Once launched, the engine will initialize the WAL-optimized SQLite store and begin streaming mempool telemetry. Connect your frontend dashboard to the secure WebSocket endpoint:
-wss://your-domain.local:8080?token=[FUSION_SECURE_TOKEN]
+- `index.html` — landing page with bilingual architecture index and direct links
+- `styles.css` — dark theme styles
 
-## About The Fusion Engine
+Primary docs remain on `main`:
 
-The Fusion Engine is a sovereign, self-hosted data infrastructure built to index, parse, and stream real-time Bitcoin mempool and Lightning Network telemetry without relying on third-party API providers. Designed for high performance and strict data privacy, the framework combines a tuned Bitcoin Core node, ZeroMQ zero-latency ingestion pipelines, a Write-Ahead Logging (WAL) optimized SQLite storage layer, and a robust BOLT 7 gossip parser.
-
-By providing cross-platform binary compilation, secure TLS-terminated WebSocket broadcasting, and dynamic multi-tenancy support, The Fusion Engine empowers operators to maintain total control over their network perception, transitioning financial data infrastructure from a rented cloud resource into unmediated, sovereign property.
-
+- https://github.com/GizzZmo/The-Fusion-Engine/blob/main/README.md
+- https://github.com/GizzZmo/The-Fusion-Engine/blob/main/docs/BLUEPRINT_NO.md
+- https://github.com/GizzZmo/The-Fusion-Engine/blob/main/backend/src/bolt7-parser.ts
